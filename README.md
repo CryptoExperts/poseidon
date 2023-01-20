@@ -29,6 +29,73 @@ C and x86_64 implementation of Poseidon hash function - first version.
         
     This makes between 150 (for n=9) and 250 (for n=3) cycles per byte.
 
+## Tests
+
+Test scripts in Python/SageMath are provided in the folder `sage`. C functions are called using the [ctypes](https://docs.python.org/3/library/ctypes.html) library. See the Jupyter notebook `tests.ipynb` for how to run the tests.
+
+For instance:
+
+```python
+load('poseidon.sage')
+load('test_clib.sage')
+
+print("=== TEST F251 C ===")
+test_lib_f251('lib_pos.so')
+
+print("\n=== TEST F251 ASM ===")
+test_lib_f251('lib_pos_asm.so')
+
+print("\n=== TEST POSEIDON C ===")
+test_permutation('lib_pos.so')
+
+print("\n=== TEST POSEIDON ASM ===")
+test_permutation('lib_pos_asm.so')
+```
+
+should produce:
+
+```
+=== TEST F251 C ===
+Test add, sub, x +/- {2,3,4}*y, ...
+OK
+Test Montgomery ...
+OK
+Test sum state ...
+OK
+youpi!
+
+=== TEST F251 ASM ===
+Test add, sub, x +/- {2,3,4}*y, ...
+OK
+Test Montgomery ...
+OK
+Test sum state ...
+OK
+youpi!
+
+=== TEST POSEIDON C ===
+Test permutation_3 ...
+OK
+Test permutation_4 ...
+OK
+Test permutation_5 ...
+OK
+Test permutation_9 ...
+OK
+youpi!
+
+=== TEST POSEIDON ASM ===
+Test permutation_3 ...
+OK
+Test permutation_4 ...
+OK
+Test permutation_5 ...
+OK
+Test permutation_9 ...
+OK
+youpi!
+```
+
 ## Still to be done
 
 * Document entry points in `f251.h` and `poseidon.h`
