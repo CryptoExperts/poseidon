@@ -137,13 +137,16 @@ void round_3(felt_t state[], int rc_idx, uint8_t round_mode)
     if (round_mode == FULL_ROUND) {
         f251_add(state[0],state[0],CONST_RC_MONTGOMERY_P3[rc_idx+0]);
         f251_add(state[1],state[1],CONST_RC_MONTGOMERY_P3[rc_idx+1]);
+        f251_add(state[2],state[2],CONST_RC_MONTGOMERY_P3[rc_idx+2]);
 
         f251_montgomery_cube(state[0],state[0]);
         f251_montgomery_cube(state[1],state[1]);
+        f251_montgomery_cube(state[2],state[2]);
     }
-
-    f251_add(state[2],state[2],CONST_RC_MONTGOMERY_P3[rc_idx+2]);
-    f251_montgomery_cube(state[2],state[2]);
+    else {
+        f251_add(state[2],state[2],CONST_RC_MONTGOMERY_P3[rc_idx]);
+        f251_montgomery_cube(state[2],state[2]);
+    }
 
     // MixLayer
     mix_layer_3(state);
@@ -156,14 +159,17 @@ void round_4(felt_t state[], int rc_idx, uint8_t round_mode)
         f251_add(state[0],state[0],CONST_RC_MONTGOMERY_P4[rc_idx+0]);
         f251_add(state[1],state[1],CONST_RC_MONTGOMERY_P4[rc_idx+1]);
         f251_add(state[2],state[2],CONST_RC_MONTGOMERY_P4[rc_idx+2]);
+        f251_add(state[3],state[3],CONST_RC_MONTGOMERY_P4[rc_idx+3]);
 
         f251_montgomery_cube(state[0],state[0]);
         f251_montgomery_cube(state[1],state[1]);
         f251_montgomery_cube(state[2],state[2]);
+        f251_montgomery_cube(state[3],state[3]);
     }
-
-    f251_add(state[3],state[3],CONST_RC_MONTGOMERY_P4[rc_idx+3]);
-    f251_montgomery_cube(state[3],state[3]);
+    else {
+        f251_add(state[3],state[3],CONST_RC_MONTGOMERY_P4[rc_idx]);
+        f251_montgomery_cube(state[3],state[3]);
+    }
 
     // MixLayer
     mix_layer_4(state);
@@ -177,16 +183,19 @@ void round_5(felt_t state[], int rc_idx, uint8_t round_mode)
         f251_add(state[1],state[1],CONST_RC_MONTGOMERY_P5[rc_idx+1]);
         f251_add(state[2],state[2],CONST_RC_MONTGOMERY_P5[rc_idx+2]);
         f251_add(state[3],state[3],CONST_RC_MONTGOMERY_P5[rc_idx+3]);
+        f251_add(state[4],state[4],CONST_RC_MONTGOMERY_P5[rc_idx+4]);
 
         f251_montgomery_cube(state[0],state[0]);
         f251_montgomery_cube(state[1],state[1]);
         f251_montgomery_cube(state[2],state[2]);
         f251_montgomery_cube(state[3],state[3]);
+        f251_montgomery_cube(state[4],state[4]);
     }
-
-    f251_add(state[4],state[4],CONST_RC_MONTGOMERY_P5[rc_idx+4]);
-    f251_montgomery_cube(state[4],state[4]);
-
+    else {
+        f251_add(state[4],state[4],CONST_RC_MONTGOMERY_P5[rc_idx]);
+        f251_montgomery_cube(state[4],state[4]);
+    }
+    
     // MixLayer
     mix_layer_5(state);
 }
@@ -203,6 +212,7 @@ void round_9(felt_t state[], int rc_idx, uint8_t round_mode)
         f251_add(state[5],state[5],CONST_RC_MONTGOMERY_P9[rc_idx+5]);
         f251_add(state[6],state[6],CONST_RC_MONTGOMERY_P9[rc_idx+6]);
         f251_add(state[7],state[7],CONST_RC_MONTGOMERY_P9[rc_idx+7]);
+        f251_add(state[8],state[8],CONST_RC_MONTGOMERY_P9[rc_idx+8]);
 
         f251_montgomery_cube(state[0],state[0]);
         f251_montgomery_cube(state[1],state[1]);
@@ -212,10 +222,12 @@ void round_9(felt_t state[], int rc_idx, uint8_t round_mode)
         f251_montgomery_cube(state[5],state[5]);
         f251_montgomery_cube(state[6],state[6]);
         f251_montgomery_cube(state[7],state[7]);
+        f251_montgomery_cube(state[8],state[8]);
     }
-
-    f251_add(state[8],state[8],CONST_RC_MONTGOMERY_P9[rc_idx+8]);
-    f251_montgomery_cube(state[8],state[8]);
+    else {
+        f251_add(state[8],state[8],CONST_RC_MONTGOMERY_P9[rc_idx]);
+        f251_montgomery_cube(state[8],state[8]);
+    }
 
     // MixLayer
     mix_layer_9(state);
