@@ -5,42 +5,23 @@
 // Save current CPU context to start a function. From System V AMD64 ABI calling 
 // conventions, registers %rbx, %rsp, %rbp, %r12-%r15 must be restored at return.
 .macro save_context
-
     pushq %rbp
-    .cfi_def_cfa_offset 16
     pushq %r15
-    .cfi_def_cfa_offset 24
     pushq %r14
-    .cfi_def_cfa_offset 32
     pushq %r13
-    .cfi_def_cfa_offset 40
     pushq %r12
-    .cfi_def_cfa_offset 48
     pushq %rbx
-    .cfi_def_cfa_offset 56
-    .cfi_offset %rbx, -56
-    .cfi_offset %r12, -48
-    .cfi_offset %r13, -40
-    .cfi_offset %r14, -32
-    .cfi_offset %r15, -24
-    .cfi_offset %rbp, -16
 .endm
 
 // Restore CPU context  to finish a function. 
 // Symmetric to above save function.
 .macro restore_context
     popq %rbx
-    .cfi_def_cfa_offset 48
     popq %r12
-    .cfi_def_cfa_offset 40
     popq %r13
-    .cfi_def_cfa_offset 32
     popq %r14
-    .cfi_def_cfa_offset 24
     popq %r15
-    .cfi_def_cfa_offset 16
     popq %rbp
-    .cfi_def_cfa_offset 8
 .endm
 
 // Load 4 registers r0, r1, r2, r3, 
@@ -214,7 +195,20 @@
 
 .endm
 
+
+#ifdef __APPLE__
+/* Apple Mac OS */
 .section __TEXT,__text
+#define FUN_PREFIX _
+#else
+/* Othe UNIX systems */
+.section .text
+#define FUN_PREFIX
+#endif
+/* Concatenation helpers */
+#define JOIN(x, y) JOIN_AGAIN(x, y)
+#define JOIN_AGAIN(x, y) x ## y
+#define FUN(f) JOIN(FUN_PREFIX, f)
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,12 +226,11 @@
 // (see macro overflow_reduce).
 // ----------------------------------------------------------------------------
 
-.globl _f251_add
+.globl FUN(f251_add)
 .p2align 4, 0x90
 
-_f251_add: 
+FUN(f251_add): 
 
-    .cfi_startproc
     save_context
 
     // load x
@@ -260,7 +253,6 @@ _f251_add:
 
     restore_context
     retq
-    .cfi_endproc
 
 // ----------------------------------------------------------------------------
 // Macro neg_mod_p 
@@ -300,12 +292,11 @@ _f251_add:
 // a "few bits reduction" (see macro fewbits_reduce).
 // ----------------------------------------------------------------------------
 
-.globl _f251_sub
+.globl FUN(f251_sub)
 .p2align 4, 0x90
 
-_f251_sub: 
+FUN(f251_sub): 
 
-    .cfi_startproc
     save_context
 
     // load y
@@ -332,7 +323,6 @@ _f251_sub:
 
     restore_context
     retq
-    .cfi_endproc
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -381,7 +371,7 @@ _f251_sub:
 .endm
 
 // ----------------------------------------------------------------------------
-// void _f251_x_plus_c_times_y(felt_t z, const felt_t x, const uint32_t c, const felt_t y)
+// void f251_x_plus_c_times_y(felt_t z, const felt_t x, const uint32_t c, const felt_t y)
 //
 // This function computes z = x + c * y (mod p).
 // Arguments are passed in rdi (z), rsi (x), rdx (c), y (rcx).
@@ -392,12 +382,11 @@ _f251_sub:
 // finally stores the result.
 // ----------------------------------------------------------------------------
 
-.globl _f251_x_plus_c_times_y
+.globl FUN(f251_x_plus_c_times_y)
 .p2align 4, 0x90
 
-_f251_x_plus_c_times_y: 
+FUN(f251_x_plus_c_times_y): 
 
-    .cfi_startproc
     save_context 
 
     // load x
@@ -405,9 +394,10 @@ _f251_x_plus_c_times_y:
 
     // load y
     load_from %rcx, %r12, %r13, %r14, %r15
-
-    // compute x + c * y  
-    addq $0, %rdx  // clear CF and OF flags
+    
+    // clear CF and OF flags
+    addq $0, %rdx
+    // compute x + c * y 
     x_plus_c_times_y %r8, %r9, %r10, %r11, %r12, %r13, %r14, %r15, %rax, %rsi
     // result is in (r8-r11, rsi)
 
@@ -420,7 +410,6 @@ _f251_x_plus_c_times_y:
 
     restore_context
     retq
-    .cfi_endproc
 
 // ----------------------------------------------------------------------------
 // Macro minus_c_times_y
@@ -458,11 +447,8 @@ _f251_x_plus_c_times_y:
 
 .endm
 
-.globl _f251_x_minus_2y
-.p2align 4, 0x90
-
 // ----------------------------------------------------------------------------
-// void _f251_x_minus_c_times_y(felt_t z, const felt_t x, const uint32_t c, const felt_t y)
+// void f251_x_minus_c_times_y(felt_t z, const felt_t x, const uint32_t c, const felt_t y)
 //
 // This function computes z = x - c * y (mod p).
 // Arguments are passed in rdi (z), rsi (x), rdx (c), y (rcx).
@@ -475,12 +461,11 @@ _f251_x_plus_c_times_y:
 // finally stores the result.
 // ----------------------------------------------------------------------------
 
-.globl _f251_x_minus_c_times_y
+.globl FUN(f251_x_minus_c_times_y)
 .p2align 4, 0x90
 
-_f251_x_minus_c_times_y: 
+FUN(f251_x_minus_c_times_y): 
 
-    .cfi_startproc
     save_context 
 
     // load y 
@@ -505,7 +490,6 @@ _f251_x_minus_c_times_y:
 
     restore_context
     retq
-    .cfi_endproc
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -607,12 +591,11 @@ _f251_x_minus_c_times_y:
 // Arguments are passed in rdi (t), rsi (state).
 // ----------------------------------------------------------------------------
 
-.globl _f251_sum_state_3
+.globl FUN(f251_sum_state_3)
 .p2align 4, 0x90
 
-_f251_sum_state_3: 
+FUN(f251_sum_state_3): 
 
-    .cfi_startproc
     save_context 
 
     // load state[0] in r8-r11
@@ -642,7 +625,6 @@ _f251_sum_state_3:
 
     restore_context
     retq
-    .cfi_endproc
 
 // ----------------------------------------------------------------------------
 // void f251_sum_state_4(felt_t t1, felt_t t2, const felt_t state[])
@@ -654,12 +636,11 @@ _f251_sum_state_3:
 // Arguments are passed in rdi (t1), rsi (t2), rdx(state)
 // ----------------------------------------------------------------------------
 
-.globl _f251_sum_state_4
+.globl FUN(f251_sum_state_4)
 .p2align 4, 0x90
 
-_f251_sum_state_4: 
+FUN(f251_sum_state_4): 
 
-    .cfi_startproc
     save_context 
 
     // load state[0] in r8-r11
@@ -704,7 +685,6 @@ _f251_sum_state_4:
 
     restore_context
     retq
-    .cfi_endproc
 
 
 // ----------------------------------------------------------------------------
@@ -715,12 +695,11 @@ _f251_sum_state_4:
 // Arguments are passed in rdi (t), rsi (state).
 // ----------------------------------------------------------------------------
 
-.globl _f251_sum_state_5
+.globl FUN(f251_sum_state_5)
 .p2align 4, 0x90
 
-_f251_sum_state_5: 
+FUN(f251_sum_state_5): 
 
-    .cfi_startproc
     save_context 
 
     // load state[0] in r8-r11
@@ -764,7 +743,6 @@ _f251_sum_state_5:
 
     restore_context
     retq
-    .cfi_endproc
 
 
 // ----------------------------------------------------------------------------
@@ -777,12 +755,11 @@ _f251_sum_state_5:
 // Arguments are passed in rdi (t1), rsi (t2), rdx(state)
 // ----------------------------------------------------------------------------
 
-.globl _f251_sum_state_9
+.globl FUN(f251_sum_state_9)
 .p2align 4, 0x90
 
-_f251_sum_state_9: 
+FUN(f251_sum_state_9): 
 
-    .cfi_startproc
     save_context 
 
     // load state[0] in r8-r11
@@ -861,7 +838,6 @@ _f251_sum_state_9:
 
     restore_context
     retq
-    .cfi_endproc
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -911,23 +887,12 @@ _f251_sum_state_9:
 //         = x * y * 2**(-256)  (mod p)
 // ----------------------------------------------------------------------------
 
-#define temp0 %rax
-#define temp1 %rbx
-#define temp2 %rcx
-#define res0 %r15
-#define res1 %rbp
-#define res2 %r8
-#define res3 %r9
-#define res4 %rdi
-#define p3 %r10
-#define y0 %r11
-#define y1 %r12
-#define y2 %r13
-#define y3 %r14
-
 // MontgomeryRound(val, x_i, y) computed a single round as explained above. 
 // Used for every round except the first.
 // x_i is passed in rdx.
+// y is passed in r11-r14.
+// p3 is passed in r10.
+// 
 // ASSUMPTIONS: 
 //   1. CF and OF are off here. This macro keeps this invariant when it exits (CF and OF are off)
 //   2. val5 = 0 (the usage of the macro ensure )
@@ -943,33 +908,33 @@ _f251_sum_state_9:
       // * adox is addition with overflow flag instead of carry flag, and doesn't affect the carry
       // flag.
 
-      // [temp1 : temp0] = (x_i * y0)_H, (x_i * y0)_L .
-      mulxq y0, temp0, temp1
+      // [%rbx : %rax] = (x_i * y0)_H, (x_i * y0)_L .
+      mulxq %r11, %rax, %rbx
       // val0 += (x_i * y_0)_L  (c carry chain) .
-      adcxq temp0, \val0
+      adcxq %rax, \val0
       // val1 += (x_i * y_0)_H  (o carry chain) .
-      adoxq temp1, \val1
+      adoxq %rbx, \val1
 
-      // [temp1 : temp0] = (x_i * y1)_H, (x_i * y1)_L .
-      mulxq y1, temp0, temp1
+      // [%rbx : %rax] = (x_i * y1)_H, (x_i * y1)_L .
+      mulxq %r12, %rax, %rbx
       // val1 += (x_i * y_1)_L  (c carry chain) .
-      adcxq temp0, \val1
+      adcxq %rax, \val1
       // val2 += (x_i * y_1)_H  (o carry chain) .
-      adoxq temp1, \val2
+      adoxq %rbx, \val2
 
-      // [temp1 : temp0] = (x_i * y2)_H, (x_i * y2)_L .
-      mulxq y2, temp0, temp1
+      // [%rbx : %rax] = (x_i * y2)_H, (x_i * y2)_L .
+      mulxq %r13, %rax, %rbx
       // val2 += (x_i * y_2)_L  (c carry chain) .
-      adcxq temp0, \val2
+      adcxq %rax, \val2
       // val3 += (x_i * y_2)_H  (o carry chain) .
-      adoxq temp1, \val3
+      adoxq %rbx, \val3
 
-      // [temp1 : temp0] = (x_i * y3)_H, (x_i * y3)_L .
-      mulxq y3, temp0, temp1
+      // [%rbx : %rax] = (x_i * y3)_H, (x_i * y3)_L .
+      mulxq %r14, %rax, %rbx
       // val3 += (x_i * y_3)_L  (c carry chain) .
-      adcxq temp0, \val3
+      adcxq %rax, \val3
       // val4 += (x_i * y_3)_H  (o carry chain) .
-      adoxq temp1, \val4
+      adoxq %rbx, \val4
       // add last carry from other carry chain (c) .
       adcq $0, \val4
 
@@ -994,8 +959,8 @@ _f251_sum_state_9:
       //      0             (u * p3)_L          0                0                u
       //   (u * p3)_H          0                0                0                0
 
-      // [temp1 : temp0] = (u * p3)_H, (u * p3)_L .
-      mulxq p3, temp0, temp1
+      // [%rbx : %rax] = (u * p3)_H, (u * p3)_L .
+      mulxq %r10, %rax, %rbx
       // val0 += u (carry in c) .
       addq %rdx, \val0
       // Note that val0 now is (val_previous + u * M) % 2**64 which is zero! (See first Remark at
@@ -1006,9 +971,9 @@ _f251_sum_state_9:
       // val2 += 0 (carry in c) .
       adcq \val0, \val2
       // val3 += (u * p3)_L (carry in c) .
-      adcq temp0, \val3
+      adcq %rax, \val3
       // val4 += (u * p3)_H (carry in c) .
-      adcq temp1, \val4
+      adcq %rbx, \val4
       // val5 += carry
       adcq $0, \val5
 
@@ -1031,80 +996,75 @@ _f251_sum_state_9:
       // However, here we only to overwrite val, not add to it.
       // This is more efficient, so we have a different implementation for the first round.
       // Step 1. val = x_i * y
-      mulxq y0, \val0, \val1
-      mulxq y1, temp0, \val2
-      addq temp0, \val1
-      mulxq y2, temp0, \val3
-      adcq temp0, \val2
-      mulxq y3, temp0, \val4
-      adcq temp0, \val3
+      mulxq %r11, \val0, \val1
+      mulxq %r12, %rax, \val2
+      addq %rax, \val1
+      mulxq %r13, %rax, \val3
+      adcq %rax, \val2
+      mulxq %r14, %rax, \val4
+      adcq %rax, \val3
       adcq $0, \val4
 
       // Step 2 + 3.
       // Currently, identical to regular Round, see above.
       movq \val0, %rdx
       negq %rdx
-      mulxq p3, temp0, temp1
+      mulxq %r10, %rax, %rbx
       addq %rdx, \val0
       adcq \val0, \val1
       adcq \val0, \val2
-      adcq temp0, \val3
-      adcq temp1, \val4
+      adcq %rax, \val3
+      adcq %rbx, \val4
       adcq $0, \val5
 .endm
 
-.globl _f251_montgomery_mult
+.globl FUN(f251_montgomery_mult)
 .p2align 4, 0x90
 
-_f251_montgomery_mult:
+FUN(f251_montgomery_mult):
 
-    .cfi_startproc
     save_context
 
-    // load y
-    load_from %rdx, y0, y1, y2, y3
+    // load y in r11-r14
+    load_from %rdx, %r11, %r12, %r13, %r14
 
-    movq (%rsi), %rdx  // x0
-    movabsq $0x800000000000011, p3
+    // load x0 in rdx 
+    movq (%rsi), %rdx
+    // move p3 in r10
+    movabsq $0x800000000000011, %r10 
 
     // save rdi (used in macros)
     pushq %rdi
 
     // Montgomery rounds
-    movq $0, res1 
-    MontgomeryRound_first res2, res3, res4, temp2, res0, res1
-    mov 8(%rsi), %rdx  // x1
-    MontgomeryRound       res3, res4, temp2, res0, res1, res2
-    mov 16(%rsi), %rdx // x2
-    MontgomeryRound       res4, temp2, res0, res1, res2, res3
-    mov 24(%rsi), %rdx // x3
-    MontgomeryRound       temp2, res0, res1, res2, res3, res4
+    // Registers [r8, r9, rdi, rcx, r15, rbp] are used as [val0 .. val5] in Montgomery rounds
+    // The order is rotated to the right between each round
+    movq $0, %rbp 
+    MontgomeryRound_first %r8, %r9, %rdi, %rcx, %r15, %rbp
+    // load x1 in rdx, run MontgomeryRound 
+    mov 8(%rsi), %rdx
+    MontgomeryRound       %r9, %rdi, %rcx, %r15, %rbp, %r8
+    // load x2 in rdx, run MontgomeryRound 
+    mov 16(%rsi), %rdx
+    MontgomeryRound       %rdi, %rcx, %r15, %rbp, %r8, %r9
+    // load x3 in rdx, run MontgomeryRound 
+    mov 24(%rsi), %rdx
+    MontgomeryRound       %rcx, %r15, %rbp, %r8, %r9, %rdi
+    // The result is now stored on [val1 .. val5] = [r15, rbp, r8, r9, rdi]
 
     // overflow reduce
-    overflow_reduce res0, res1, res2, res3, res4, temp0, temp1, temp2
+    overflow_reduce %r15, %rbp, %r8, %r9, %rdi, %rax, %rbx, %rcx
 
     // restore rdi
     popq %rdi
 
     // store z
-    store_to %rdi, res0, res1, res2, res3
+    store_to %rdi, %r15, %rbp, %r8, %r9
 
     restore_context
     retq
-    .cfi_endproc
 
-#undef temp0
-#undef temp1
-#undef temp2
-#undef res0
-#undef res1
-#undef res2
-#undef res3
-#undef res4
-#undef p3
-#undef y0
-#undef y1
-#undef y2
-#undef y3
-
-
+#ifndef __APPLE__
+/* This is only relevant for Linux */
+.section .note.GNU-stack,"",%progbits 
+#endif

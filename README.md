@@ -1,12 +1,12 @@
 # poseidon
 
-C and x86_64 implementation of Poseidon hash function - first version.
+C and x86_64 implementation of Poseidon hash function.
 
 ## Building
 
-- This version has been built and tested on MacOS. To build and test on Linux, replace the statement `.section __TEXT,__text` by `.section text` in `f251.s`.
+- See the Makefile in `sources` folder.
 - To build the x86_64 accelerated version, define the macro ASSEMBLY.
-- See the Makefile in `sources` folder for example.
+- The x86_64 accelerated version requires support of [Intel ADX instructions](https://en.wikipedia.org/wiki/Intel_ADX) (introduced since Broadwell architecture).
 
 ## First report
 
