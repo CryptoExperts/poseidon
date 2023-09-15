@@ -1,3 +1,6 @@
+// Sanity check for the platform
+#if defined(__x86_64__)
+
 ////////////////////////////////////////////////////////////////////////////////
 ///  Simple macros
 ////////////////////////////////////////////////////////////////////////////////
@@ -1064,7 +1067,11 @@ FUN(f251_montgomery_mult):
     restore_context
     retq
 
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(__WIN32__)
 /* This is only relevant for Linux */
 .section .note.GNU-stack,"",%progbits 
+#endif
+
+#else // !define(__x86_64__)
+#warning "f251_asm.S made empty since we are compiling for a non-x86_64 platform!"
 #endif

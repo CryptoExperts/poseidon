@@ -1,17 +1,17 @@
 #include <stdint.h>
-
+#include <stddef.h>
 #include "f251.h"
 
 // Check if the compiler defines int128 or if ASSEMBLY is defined, or if
 // we want ISO_C
-#if !defined(__SIZEOF_INT128__) || defined(ASSEMBLY) || defined(ISO_C)
+#if defined(__SIZEOF_INT128__) && !defined(ASSEMBLY) && !defined(ISO_C)
+
+typedef unsigned __int128 uint128_t;
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  Macros
 ////////////////////////////////////////////////////////////////////////////////
 
-#define HI(x)       (x >> 32)
-#define LO(x)       (x & 0xFFFFFFFF)
 #define CONST_P3     0x800000000000011ull   // p = p3 * 2^192 + 1  = [1, 0, 0, p3]
 #define CONST_16P3  0x8000000000000110ull   // 16p = [16, 0, 0, (16p)_3]
 
@@ -24,8 +24,7 @@ const felt_t CONST_MONT_2256 = {
     0xfffffd737e000401ull, 0x1330fffffull, 
     0xffffffffff6f8000ull, 0x7ffd4ab5e008810ull };
 
-const felt_t CONST_ONE = {1, 0, 0, 0};
-
+const felt_t CONST_ONE = { 1, 0, 0, 0 };
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  Integer operations
@@ -34,50 +33,53 @@ const felt_t CONST_ONE = {1, 0, 0, 0};
 // 64-bit addition
 // z = x + y + in_c (mod 2^64)
 // out_c = carry 
-void add64(uint64_t *z, uint64_t *out_c, uint64_t x, uint64_t y, uint64_t in_c) {
-    uint64_t t0, t1;
+static inline void add64(uint64_t *z, uint64_t *out_c, uint64_t x, uint64_t y, uint64_t in_c) {
+    uint128_t res = (uint128_t)x + (uint128_t)y + (uint128_t)in_c;
+    if(out_c != NULL){
+        (*out_c) = (uint64_t)(res >> 64);
+    }
+    (*z) = (uint64_t)res;
+}
 
-    t0 = LO(x) + LO(y) + LO(in_c);
-    t1 = HI(t0) + HI(x) + HI(y) + HI(in_c);
-    t0 = LO(t0);
-
-    *out_c = HI(t1);
-    *z = t0 + (t1 << 32);
+// 128-bit addition
+// z = x + y + in_c (mod 2^128)
+// out_c = carry
+static inline void add128(uint64_t *z, uint64_t *out_c, const uint64_t *x, const uint64_t *y, uint64_t in_c)
+{
+    uint64_t c;
+    add64(&z[0], &c, x[0], y[0], in_c);
+    add64(&z[1], out_c, x[1], y[1], c);
 }
 
 // 64-bit subtraction 
 // compute x + ((2^64-1)-y) + (1-borrow) = 2^64 + x - y - borrow
 // result z = x - y (mod 2^64)
 // borrow = not carry
-void sub64(uint64_t *z, uint64_t *out_b, uint64_t x, uint64_t y, uint64_t in_b) {
-    add64(z, out_b, x, -1-y, 1-in_b);
-    *out_b ^= 1;
+static inline void sub64(uint64_t *z, uint64_t *out_b, uint64_t x, uint64_t y, uint64_t in_b) {
+    uint128_t res = ((uint128_t)1 << 64) + (uint128_t)x - (uint128_t)y - (uint128_t)in_b;
+    if(out_b != NULL){
+        (*out_b) = (uint64_t)(res >> 64) ^ 1;
+    }
+    (*z) = (uint64_t)res;
 }
 
-#ifndef ASSEMBLY
+// 128-bit subtraction
+// borrow = not carry
+static inline void sub128(uint64_t *z, uint64_t *out_b, const uint64_t *x, const uint64_t *y, uint64_t in_b)
+{
+    uint128_t a = -1-(*(uint128_t*)y);
+    add128(z, out_b, x, (uint64_t*)&a, 1-in_b);
+    if(out_b != NULL){
+        (*out_b) ^= 1;
+    }
+}
 
 // 64-bit multiplication
 // (z[0], z[1]) = x * y 
-void mult64(uint64_t *z, uint64_t x, uint64_t y) {
-    
-    uint64_t z0, z1, z2, z3; 
-    
-    uint64_t t = LO(x) * LO(y);
-    z0 = LO(t);
-    
-    t = HI(x) * LO(y) + HI(t);
-    z1 = LO(t);
-    z2 = HI(t);
-    
-    t = z1 + LO(x) * HI(y);
-    z1 = LO(t);
-    
-    t = z2 + HI(x) * HI(y) + HI(t);
-    z2 = LO(t);
-    z3 = HI(t);
-    
-    z[0] = z1 << 32 | z0;
-    z[1] = z3 << 32 | z2;
+static inline void mult64(uint64_t *z, uint64_t x, uint64_t y) {
+    uint128_t res = (uint128_t)x * (uint128_t)y;
+    z[0] = (uint64_t)res;
+    z[1] = (uint64_t)(res >> 64);
 }
 
 // 256-bit integer addition
@@ -87,15 +89,17 @@ void mult64(uint64_t *z, uint64_t x, uint64_t y) {
 // Retruns a (256+64)-bit integer:
 // z = (z[0], z[1], z[2], z[3], z[4]) = x+y
 // Low-order words are in low-order indexes.
-void add256(uint64_t *z, const uint64_t *x, const uint64_t *y) {
+static inline void add256(uint64_t *z, const uint64_t *x, const uint64_t *y) {
+    add128(&z[0], &z[4], &x[0], &y[0], 0);
+    add128(&z[2], &z[4], &x[2], &y[2], z[4]);
+}
 
-    uint64_t c;
-
-    add64(z+0, &c, x[0], y[0], 0);
-    add64(z+1, &c, x[1], y[1], c);
-    add64(z+2, &c, x[2], y[2], c);
-    add64(z+3, &c, x[3], y[3], c);
-    z[4] = c;
+static inline void sub256(uint64_t *z, const uint64_t *x, const uint64_t *y) {
+    uint64_t b;
+    sub128(&z[0], &b, &x[0], &y[0], 0);
+    sub128(&z[2], &b, &x[2], &y[2], b);
+    
+    sub64(&z[4], (uint64_t*)&b, z[4],    0, (uint64_t)b);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,18 +129,11 @@ void f251_overflow_reduce(uint64_t *z, const uint64_t *t)
     uint64_t r256 = t[4];
 
     // computes s = [s0, s1, s2, s3, s4] wrt (r255,r256)
-    uint64_t s0 = r256 * (16 + r255 * 16);
-    // s1 = 0
-    // s2 = 0
-    uint64_t s3 = r256 * r255 * 544;
-    s3 += r256 * (1-r255) * CONST_16P3;
-    //s4 = r256 * r255;
+    uint64_t t0[4] = { r256 * (16 + r255 * 16), 0, 0, (r256 * r255 * 544) + (r256 * (1-r255) * CONST_16P3) };
 
     // subtraction 
-    sub64(z+0, &b, t[0], s0, 0);
-    sub64(z+1, &b, t[1],  0, b);
-    sub64(z+2, &b, t[2],  0, b);
-    sub64(z+3, &b, t[3], s3, b);
+    sub128(&z[0], &b, &t[0], &t0[0], 0);
+    sub128(&z[2], &b, &t[2], &t0[2], b);
 }
 
 // Few bits reduction modulo p.
@@ -159,30 +156,20 @@ void f251_overflow_reduce(uint64_t *z, const uint64_t *t)
 // this addition of p does not overflow.
 void f251_fewbits_reduce(uint64_t *z, const uint64_t *r)
 {
-    uint64_t b,c;
+    uint64_t c;
 
     // computes s = [s0, s1, s2, s3, s4] = r[4] * 32*p
-    uint64_t s0 = 32 * r[4];
-    // s1 = 0
-    // s2 = 0
-    uint64_t s3 = 544 * r[4];
-    //s4 = r[4];
-
-    // z = r - r[4] * 32*p 
-    sub64(z+0, &b, r[0], s0, 0);
-    sub64(z+1, &b, r[1],  0, b);
-    sub64(z+2, &b, r[2],  0, b);
-    sub64(z+3, &b, r[3], s3, b);
-    
+    // z = r - r[4] * 32*p
+    uint64_t t1[4] = { 32 * r[4], 0, 0, 544 * r[4] };
+    uint64_t t2[4] = { 0 };
+    sub128(&z[0], &t2[0], &r[0], &t1[0], 0);
+    sub128(&z[2], &t2[0], &r[2], &t1[2], t2[0]);
+   
     // z += b * p
-    add64(z+0, &c, z[0], b, 0);
-    add64(z+1, &c, z[1], 0, c);
-    add64(z+2, &c, z[2], 0, c);
-    add64(z+3, &c, z[3], b*CONST_P3, c);
-
+    t2[3] = t2[0] * CONST_P3;
+    add128(&z[0], &c, &z[0], &t2[0], 0);
+    add128(&z[2], NULL, &z[2], &t2[2], c);
 }
-
-#endif 
 
 // Final reduce
 // Takes a 256-bit integer x and reduces it modulo p, 
@@ -198,27 +185,19 @@ void f251_fewbits_reduce(uint64_t *z, const uint64_t *r)
 
 void f251_final_reduce(uint64_t *z, const uint64_t *x)
 {
-    uint64_t b,c;
+    uint64_t c;
 
     // computes s = [s0, s1, s2, s3] = xh * p
-    uint64_t xh = x[3] >> 59;
-    uint64_t s0 = xh;
-    // s1 = 0
-    // s2 = 0
-    uint64_t s3 = xh * CONST_P3;
-
+    uint64_t t1[4] = { (x[3] >> 59), 0, 0, (x[3] >> 59) * CONST_P3};
+    uint64_t t2[4] = { 0 };
     // z = x - xh * p
-    sub64(z+0, &b, x[0], s0, 0);
-    sub64(z+1, &b, x[1],  0, b);
-    sub64(z+2, &b, x[2],  0, b);
-    sub64(z+3, &b, x[3], s3, b);
-    
+    sub128(&z[0], &t2[0], &x[0], &t1[0], 0);
+    sub128(&z[2], &t2[0], &x[2], &t1[2], t2[0]);
+   
     // z += b * p
-    add64(z+0, &c, z[0], b, 0);
-    add64(z+1, &c, z[1], 0, c);
-    add64(z+2, &c, z[2], 0, c);
-    add64(z+3, &c, z[3], b*CONST_P3, c);
-
+    t2[3] = (t2[0] * CONST_P3);
+    add128(&z[0], &c, &z[0], &t2[0], 0);
+    add128(&z[2], NULL, &z[2], &t2[2], c);
 }
 
 
@@ -230,10 +209,9 @@ void f251_final_reduce(uint64_t *z, const uint64_t *x)
 // Copies x to z.
 void f251_copy(felt_t z, const felt_t x)
 {
-    z[0]=x[0]; z[1]=x[1]; z[2]=x[2]; z[3]=x[3]; 
+    *((uint128_t*)&z[0]) = *((uint128_t*)&x[0]);
+    *((uint128_t*)&z[2]) = *((uint128_t*)&x[2]);
 }
-
-#ifndef ASSEMBLY
 
 // F251 addition
 // Computes z = x + y mod p, where
@@ -246,7 +224,7 @@ void f251_add(felt_t z, const felt_t x, const felt_t y)
 {
     uint64_t t[5];
 
-    add256(t,x,y);
+    add256(t, x, y);
     f251_overflow_reduce(z, t);
 }
 
@@ -258,23 +236,15 @@ void f251_add(felt_t z, const felt_t x, const felt_t y)
 // The function first computes (x + 32*p) - y, where 32*p = [32, 0, 0, 544, 1]
 // then performs the partial reduction by calling f251_fewbits_reduce.
 void f251_sub(felt_t z, const felt_t x, const felt_t y) {
-
     uint64_t t[5];
-    uint64_t c, b;
+    uint64_t constant[4] = { 32, 0, 0, 544 };
 
-    add64(t+0, &c, x[0], 32,  0);
-    add64(t+1, &c, x[1], 0,   c);
-    add64(t+2, &c, x[2], 0,   c);
-    add64(t+3, &c, x[3], 544, c);
-    t[4] = 1 + c;
+    add256(&t[0], &x[0], &constant[0]); 
+    t[4] += 1;
 
-    sub64(t+0, &b, t[0], y[0], 0);
-    sub64(t+1, &b, t[1], y[1], b);
-    sub64(t+2, &b, t[2], y[2], b);
-    sub64(t+3, &b, t[3], y[3], b);
-    sub64(t+4, &b, t[4],    0, b);
+    sub256(&t[0], &t[0], &y[0]);
 
-    f251_fewbits_reduce(z,t);
+    f251_fewbits_reduce(z, t);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,15 +257,12 @@ void f251_sub(felt_t z, const felt_t x, const felt_t y) {
 //  - the result z is "partialy reduced" modulo p, 
 //    i.e. it holds on 256 bits but might be greater than p.
 void f251_x_plus_2y(felt_t z, const felt_t x, const felt_t y) {
-
     uint64_t t[5];
-    uint64_t c;
 
-    add64(t+0, &c, x[0], y[0] << 1, 0);
-    add64(t+1, &c, x[1], (y[1] << 1) | (y[0] >> 63), c);
-    add64(t+2, &c, x[2], (y[2] << 1) | (y[1] >> 63), c);
-    add64(t+3, &c, x[3], (y[3] << 1) | (y[2] >> 63), c);
-    t[4] = (y[3] >> 63) + c;
+    uint64_t y_[4] = { y[0] << 1, (y[1] << 1) | (y[0] >> 63), (y[2] << 1) | (y[1] >> 63), (y[3] << 1) | (y[2] >> 63)};
+
+    add256(&t[0], &x[0], &y_[0]);
+    t[4] += (y[3] >> 63);
 
     f251_fewbits_reduce(z,t);
 }
@@ -310,14 +277,14 @@ void f251_x_plus_3y(felt_t z, const felt_t x, const felt_t y) {
     uint64_t t[5];
     uint64_t c1,c2;
 
-    add64(t+0, &c1, x[0], y[0], 0);
-    add64(t+0, &c2, t[0], y[0] << 1, 0);
-    add64(t+1, &c1, x[1], y[1], c1);
-    add64(t+1, &c2, t[1], (y[1] << 1) | (y[0] >> 63), c2);
-    add64(t+2, &c1, x[2], y[2], c1);
-    add64(t+2, &c2, t[2], (y[2] << 1) | (y[1] >> 63), c2);
-    add64(t+3, &c1, x[3], y[3], c1);
-    add64(t+3, &c2, t[3], (y[3] << 1) | (y[2] >> 63), c2);
+    add64(&t[0], &c1, x[0], y[0], 0);
+    add64(&t[0], &c2, t[0], y[0] << 1, 0);
+    add64(&t[1], &c1, x[1], y[1], c1);
+    add64(&t[1], &c2, t[1], (y[1] << 1) | (y[0] >> 63), c2);
+    add64(&t[2], &c1, x[2], y[2], c1);
+    add64(&t[2], &c2, t[2], (y[2] << 1) | (y[1] >> 63), c2);
+    add64(&t[3], &c1, x[3], y[3], c1);
+    add64(&t[3], &c2, t[3], (y[3] << 1) | (y[2] >> 63), c2);
     t[4] = (y[3] >> 63) + c1 + c2;
 
     f251_fewbits_reduce(z,t);
@@ -329,15 +296,12 @@ void f251_x_plus_3y(felt_t z, const felt_t x, const felt_t y) {
 //  - the result z is "partialy reduced" modulo p, 
 //    i.e. it holds on 256 bits but might be greater than p.
 void f251_x_plus_4y(felt_t z, const felt_t x, const felt_t y) {
-
     uint64_t t[5];
-    uint64_t c;
 
-    add64(t+0, &c, x[0], y[0] << 2, 0);
-    add64(t+1, &c, x[1], (y[1] << 2) | (y[0] >> 62), c);
-    add64(t+2, &c, x[2], (y[2] << 2) | (y[1] >> 62), c);
-    add64(t+3, &c, x[3], (y[3] << 2) | (y[2] >> 62), c);
-    t[4] = (y[3] >> 62) + c;
+    uint64_t y_[4] = { y[0] << 2, (y[1] << 2) | (y[0] >> 62), (y[2] << 2) | (y[1] >> 62), (y[3] << 2) | (y[2] >> 62) };
+
+    add256(&t[0], &x[0], &y_[0]);
+    t[4] += (y[3] >> 62);
 
     f251_fewbits_reduce(z,t);
 }
@@ -350,21 +314,16 @@ void f251_x_plus_4y(felt_t z, const felt_t x, const felt_t y) {
 // The function first computes (x + 2*32*p) - 2*y, where 2*32*p = [64, 0, 0, 1088, 2],
 // then performs the partial reduction by calling f251_fewbits_reduce.
 void f251_x_minus_2y(felt_t z, const felt_t x, const felt_t y) {
+    uint64_t t[5] = { 64, 0, 0, 1088, 0 };
 
-    uint64_t t[5];
-    uint64_t c, b;
+    add256(&t[0], &x[0], &t[0]);
+    t[4] += 2;
 
-    add64(t+0, &c, x[0], 64,   0);
-    add64(t+1, &c, x[1], 0,    c);
-    add64(t+2, &c, x[2], 0,    c);
-    add64(t+3, &c, x[3], 1088, c);
-    t[4] = 2 + c;
-
-    sub64(t+0, &b, t[0], (y[0] << 1), 0);
-    sub64(t+1, &b, t[1], (y[1] << 1) | (y[0] >> 63), b);
-    sub64(t+2, &b, t[2], (y[2] << 1) | (y[1] >> 63), b);
-    sub64(t+3, &b, t[3], (y[3] << 1) | (y[2] >> 63), b);
-    sub64(t+4, &b, t[4], (y[3] >> 63), b);
+    uint64_t y_[4] = { (y[0] << 1), (y[1] << 1) | (y[0] >> 63), (y[2] << 1) | (y[1] >> 63), (y[3] << 1) | (y[2] >> 63) };
+    uint64_t b;
+    sub128(&t[0], &b, &t[0], &y_[0], 0);
+    sub128(&t[2], &b, &t[2], &y_[2], b);
+    sub64(&t[4], NULL, t[4], (y[3] >> 63), b);
 
     f251_fewbits_reduce(z,t);
 }
@@ -377,27 +336,18 @@ void f251_x_minus_2y(felt_t z, const felt_t x, const felt_t y) {
 // The function first computes (x + 3*32*p) - 2*y - y, where 3*32*p = [96, 0, 0, 1632, 3]
 // then performs the partial reduction by calling f251_fewbits_reduce.
 void f251_x_minus_3y(felt_t z, const felt_t x, const felt_t y) {
+    uint64_t t[5] = { 96, 0, 0, 1632, 0 };
 
-    uint64_t t[5];
-    uint64_t c, b;
+    add256(&t[0], &x[0], &t[0]);
+    t[4] += 3;
 
-    add64(t+0, &c, x[0], 96,   0);
-    add64(t+1, &c, x[1], 0,    c);
-    add64(t+2, &c, x[2], 0,    c);
-    add64(t+3, &c, x[3], 1632, c);
-    t[4] = 3 + c;
+    uint64_t y_[4] = { (y[0] << 1), (y[1] << 1) | (y[0] >> 63), (y[2] << 1) | (y[1] >> 63), (y[3] << 1) | (y[2] >> 63) };
+    uint64_t b;
+    sub128(&t[0], &b, &t[0], &y_[0], 0);
+    sub128(&t[2], &b, &t[2], &y_[2], b);
+    sub64(&t[4], NULL, t[4], (y[3] >> 63), b);
 
-    sub64(t+0, &b, t[0], (y[0] << 1), 0);
-    sub64(t+1, &b, t[1], (y[1] << 1) | (y[0] >> 63), b);
-    sub64(t+2, &b, t[2], (y[2] << 1) | (y[1] >> 63), b);
-    sub64(t+3, &b, t[3], (y[3] << 1) | (y[2] >> 63), b);
-    sub64(t+4, &b, t[4], (y[3] >> 63), b);
-
-    sub64(t+0, &b, t[0], y[0], 0);
-    sub64(t+1, &b, t[1], y[1], b);
-    sub64(t+2, &b, t[2], y[2], b);
-    sub64(t+3, &b, t[3], y[3], b);
-    sub64(t+4, &b, t[4],    0, b);
+    sub256(&t[0], &t[0], &y[0]);    
 
     f251_fewbits_reduce(z,t);
 }
@@ -410,21 +360,16 @@ void f251_x_minus_3y(felt_t z, const felt_t x, const felt_t y) {
 // The function first computes (x + 4*32*p) - 4*y, where 4*32*p = [128, 0, 0, 2176, 4]
 // then performs the partial reduction by calling f251_fewbits_reduce.
 void f251_x_minus_4y(felt_t z, const felt_t x, const felt_t y) {
+    uint64_t t[5] = { 128, 0, 0, 2176, 0 };
 
-    uint64_t t[5];
-    uint64_t c, b;
+    add256(&t[0], &x[0], &t[0]);
+    t[4] += 4;
 
-    add64(t+0, &c, x[0], 128,  0);
-    add64(t+1, &c, x[1], 0,    c);
-    add64(t+2, &c, x[2], 0,    c);
-    add64(t+3, &c, x[3], 2176, c);
-    t[4] = 4 + c;
-
-    sub64(t+0, &b, t[0], (y[0] << 2), 0);
-    sub64(t+1, &b, t[1], (y[1] << 2) | (y[0] >> 62), b);
-    sub64(t+2, &b, t[2], (y[2] << 2) | (y[1] >> 62), b);
-    sub64(t+3, &b, t[3], (y[3] << 2) | (y[2] >> 62), b);
-    sub64(t+4, &b, t[4], (y[3] >> 62), b);
+    uint64_t y_[4] = { (y[0] << 2), (y[1] << 2) | (y[0] >> 62), (y[2] << 2) | (y[1] >> 62), (y[3] << 2) | (y[2] >> 62) };
+    uint64_t b;
+    sub128(&t[0], &b, &t[0], &y_[0], 0);
+    sub128(&t[2], &b, &t[2], &y_[2], b);
+    sub64(&t[4], NULL, t[4], (y[3] >> 62), b);
 
     f251_fewbits_reduce(z,t);
 }
@@ -521,7 +466,7 @@ void f251_sum_state_9(felt_t t1, felt_t t2, const felt_t state[])
 //   res_4 = ((x_0 + x_1 * 2**64 + x_2 * 2**128 + x_3 * 2**192) * y) * 2**(-256)  (mod p)
 //         = x * y * 2**(-256)  (mod p)
 
-void montgomery_round(uint64_t *z, uint64_t x_i, const uint64_t *y)
+void montgomery_round(uint64_t *z, const uint64_t *x_i, const uint64_t *y)
 {
     uint64_t t[2];
     uint64_t c1, c2;
@@ -529,21 +474,25 @@ void montgomery_round(uint64_t *z, uint64_t x_i, const uint64_t *y)
 
     // Step 1: z += x_i * y
 
-    mult64(t,x_i,y[0]);
-    add64(z+0, &c1, z[0], t[0], 0);
-    add64(z+1, &c2, z[1], t[1], 0);
+    mult64(t, x_i[0], y[0]);
+    // Additions with no carry in
+    z[0] += t[0];
+    c1 = (z[0] < t[0]) ? 1 : 0;
+    z[1] += t[1];
+    c2 = (z[1] < t[1]) ? 1 : 0;
 
-    mult64(t,x_i,y[1]);
-    add64(z+1, &c1, z[1], t[0], c1);
-    add64(z+2, &c2, z[2], t[1], c2);
+    mult64(t, x_i[0], y[1]);
 
-    mult64(t,x_i,y[2]);
-    add64(z+2, &c1, z[2], t[0], c1);
-    add64(z+3, &c2, z[3], t[1], c2);
+    add64(&z[1], &c1, z[1], t[0], c1);
+    add64(&z[2], &c2, z[2], t[1], c2);
 
-    mult64(t,x_i,y[3]);
-    add64(z+3, &c1, z[3], t[0], c1);
-    add64(z+4, &c2, z[4], t[1], c2);
+    mult64(t, x_i[0], y[2]);
+    add64(&z[2], &c1, z[2], t[0], c1);
+    add64(&z[3], &c2, z[3], t[1], c2);
+
+    mult64(t, x_i[0], y[3]);
+    add64(&z[3], &c1, z[3], t[0], c1);
+    add64(&z[4], NULL, z[4], t[1], c2);
 
     z[4] += c1;
 
@@ -553,28 +502,28 @@ void montgomery_round(uint64_t *z, uint64_t x_i, const uint64_t *y)
 
     // Step 3: z += u * p
 
-    mult64(t,u,CONST_P3);
-    add64(z+0, &c1, z[0], u,     0);
-    add64(z+1, &c1, z[1], 0,    c1);
-    add64(z+2, &c1, z[2], 0,    c1);
-    add64(z+3, &c1, z[3], t[0], c1);
-    add64(z+4, &c1, z[4], t[1], c1);
-    add64(z+5, &c1, z[5], 0,    c1); 
+    mult64(t, u, CONST_P3);
+
+    uint64_t u_[2]  = { u, 0 };
+    uint64_t t0_[2] = { 0, t[0] };
+    uint64_t t1_[2] = { t[1], 0 };
+
+    add128(&z[0], &c1, &z[0], &u_[0], 0);
+    add128(&z[2], &c1, &z[2], &t0_[0], c1);
+    add128(&z[4], NULL, &z[4], &t1_[0], c1);
 }
 
 void f251_montgomery_mult(felt_t z, const felt_t x, const felt_t y)
 {
-    uint64_t t[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    uint64_t t[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    montgomery_round(t+0, x[0], y);
-    montgomery_round(t+1, x[1], y);
-    montgomery_round(t+2, x[2], y);
-    montgomery_round(t+3, x[3], y);
+    montgomery_round(&t[0], &x[0], y);
+    montgomery_round(&t[1], &x[1], y);
+    montgomery_round(&t[2], &x[2], y);
+    montgomery_round(&t[3], &x[3], y);
 
-   f251_overflow_reduce(z, t+4);
+   f251_overflow_reduce(z, &t[4]);
 }
-
-#endif
 
 // Convert to Montgomery form.
 // This function puts x in Montgomery form i.e. returns mx = x * 2^256 (mod p).
@@ -606,4 +555,4 @@ void f251_montgomery_cube(felt_t z, const felt_t x)
     f251_montgomery_mult(z,x2,x);
 }
 
-#endif // !defined(__SIZEOF_INT128__) || defined(ASSEMBLY) || defined(ISO_C)
+#endif // defined(__SIZEOF_INT128__) && !defined(ASSEMBLY) && !defined(ISO_C)

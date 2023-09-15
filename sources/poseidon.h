@@ -1,3 +1,6 @@
+#ifndef __POSEIDON_H__
+#define __POSEIDON_H__
+
 #include <stdint.h>
 #include "f251.h"
 
@@ -15,3 +18,5 @@ void permutation_3(felt_t state[]);
 void permutation_4(felt_t state[]);
 void permutation_5(felt_t state[]);
 void permutation_9(felt_t state[]);
+
+#endif // __POSEIDON_H__

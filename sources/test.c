@@ -2,9 +2,35 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <inttypes.h>
+#include <sys/time.h>
 #include "poseidon.h"
+#include "platform_utils.h"
 
-void clear_state(felt_t* state, int size)
+static int get_ms_time(uint64_t *time)
+{
+        struct timeval tv;
+        int ret;
+
+        if (time == NULL) {
+                ret = -1;
+                goto err;
+        }
+
+        ret = gettimeofday(&tv, NULL);
+        if (ret < 0) {
+                ret = -1;
+                goto err;
+        }
+
+        (*time) = (uint64_t)(((tv.tv_sec) * 1000) + ((tv.tv_usec) / 1000));
+        ret = 0;
+
+err:
+        return ret;
+}
+
+static void clear_state(felt_t* state, int size)
 {
     int i;
 
@@ -17,16 +43,16 @@ void clear_state(felt_t* state, int size)
     }
 }
 
-void print_state(felt_t* state, int size)
+__attribute__((used)) static void print_state(felt_t* state, int size)
 {
     int i;
 
     for(i=0; i<size; i++)
     {
-        printf("%016llx",state[i][3]);
-        printf("%016llx",state[i][2]);
-        printf("%016llx",state[i][1]);
-        printf("%016llx",state[i][0]);
+        printf("%016" PRIx64,state[i][3]);
+        printf("%016" PRIx64,state[i][2]);
+        printf("%016" PRIx64,state[i][1]);
+        printf("%016" PRIx64,state[i][0]);
         printf("\n");
     }
 }
@@ -69,10 +95,31 @@ felt_t RES_P9_0[9] =
     {0x843a2de1afbece60ull, 0x210fc63dcfc96f0bull, 0x246a5c8b7adcfc7full, 0x6eb59614b6bd7e0ull}
 };
 
+#ifndef PERF_MEASUREMENT
+#define PERF_MEASUREMENT 500000
+#endif
+
+// Small macro to measure performance of a function with argument a
+#define DO_MEASURE_PERF(fn, a, m) do { \
+  uint64_t i, t1 = 0, t2 = 0, t = 0; \
+  for(i = 0; i < PERF_MEASUREMENT; i++){ \
+    	get_ms_time(&t1); \
+        fn(a); \
+    	get_ms_time(&t2); \
+        t += (t2 - t1); \
+  } \
+  printf("[+] %s performance measurement: %f ms on average\n", #fn, (float)t / (float)PERF_MEASUREMENT); \
+} while(0);
+
 int main(int argc, const char* argv[])
 {
     felt_t state[9];
     int err = 0;
+
+    (void)argc;
+    (void)argv;
+
+    print_backend();
 
     // Test poseidon3
     clear_state(state, 3);
@@ -126,6 +173,20 @@ int main(int argc, const char* argv[])
     {
         printf("All good :-)\n");
     }
+
+    // Test performance
+    // Permutation 3
+    clear_state(state, 3);
+    DO_MEASURE_PERF(permutation_3, state, PERF_MEASUREMENT);
+    // Permutation 4
+    clear_state(state, 4);
+    DO_MEASURE_PERF(permutation_4, state, PERF_MEASUREMENT);
+    // Permutation 3
+    clear_state(state, 5);
+    DO_MEASURE_PERF(permutation_5, state, PERF_MEASUREMENT);
+    // Permutation 9
+    clear_state(state, 9);
+    DO_MEASURE_PERF(permutation_9, state, PERF_MEASUREMENT);
 
     return 0;
 }
