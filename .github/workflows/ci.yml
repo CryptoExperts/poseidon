@@ -1,0 +1,19 @@
+name: Poseidon CI
+
+# Run this workflow every time a new commit pushed to your repository
+on: push
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Build and test
+      id: build-image
+      env:
+        CI_VERBOSE: 1
+      run: |
+        make -f Makefile.ci
