@@ -122,6 +122,23 @@ OK
 youpi!
 ```
 
+## CI script
+
+There is a [CI folder](CI/) that contains a script that (cross-)compiles and launches or emulates the basic Poseidon testing binary for various platforms.
+With `Docker` installed, you can execute this using the [Makefile.ci](Makefile.ci) file:
+
+
+```
+CI_VERBOSE=1 make -f Makefile.ci
+...
+#11 5.961 =========== Compiling with x86_64-w64-mingw32-gcc compiler ISO_C=0
+...
+#11 7.571 =========== Testing compilation with x86_64-w64-mingw32-gcc compiler and ISO_C=0
+...
+#11 7.575 ============== (emulating with wine)
+...
+```
+
 ## Still to be done
 
 * Document entry points in `f251.h` and `poseidon.h`
