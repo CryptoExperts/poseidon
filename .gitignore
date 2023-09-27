@@ -1,3 +1,9 @@
 *.DS_Store
 sage/.ipynb_checkpoints/*
 sources/*.o
+sources/*.so
+sources/test
+sources/test_asm 
+sources/test.exe
+sources/test_asm.exe 
+sources/bin_test_adx*
