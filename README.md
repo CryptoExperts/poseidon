@@ -153,3 +153,7 @@ Developed and maintained by [Matthieu Rivain](https://www.matthieurivain.com/)
 
 - Ilya Lesokhin (StarkWare): initial version of the Montgomery multiplication in assembly.
 - Ryad Benadjila (CryptoExperts):  `__int128` version of the C code, cross-compilation & sanity checks.
+
+## License 
+
+This project is licensed under the terms of Apache License, Version 2.0
