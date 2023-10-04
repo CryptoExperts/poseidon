@@ -35,17 +35,33 @@ Four instances of the Poseidon permutation are implemented with parameters provi
     
 - The Makefile also takes `EXTRA_CFLAGS` and `EXTRA_ASMFLAGS` as environment variables to add user defined options. You can also fully override `CFLAGS` and `CFLAGS_ASM` with the environment variables.
 
-## Benchmarks
+## Benchmark
 
-Here are some benchmarks for one Poseidon permutation with the different parameters on different platforms.
+Here are some benchmark for one Poseidon permutation with the different parameters on different platforms.
 
+- On **Intel Core i5 (3,7 GHz)**, compiled with `clang-11`:
+    - Assembly accelerated (`x86_64`) implementation:
+        - n=3 : 0.005200 ms
+        - n=4 : 0.005514 ms
+        - n=5 : 0.006294 ms
+        - n=9 : 0.009712 ms
+    - Full C implementation with `__int128` support:
+        - n=3 : 0.007688 ms
+        - n=4 : 0.007980 ms
+        - n=5 : 0.009948 ms
+        - n=9 : 0.015312 ms
+    - Full standard C implementation:
+        - n=3 : 0.027122 ms
+        - n=4 : 0.027054 ms
+        - n=5 : 0.033934 ms
+        - n=9 : 0.053316 ms
+        
 - On **AMD Ryzen 7 PRO 6850U (2.7GHz)**, compiled with `clang-18`:
     - Assembly accelerated (`x86_64`) implementation:
         - n=3 : 0.005538 ms (14952 cc)
         - n=4 : 0.005552 ms (14990 cc)
         - n=5 : 0.006554 ms (17695 cc)
         - n=9 : 0.009266 ms (25018 cc)
-        - _This makes between 87 (for n=9) and 156 (for n=3) cycles per byte._
     - Full C implementation with `__int128` support:
         - n=3 : 0.007172 ms (19364 cc)
         - n=4 : 0.007368 ms (19893 cc)
@@ -56,6 +72,7 @@ Here are some benchmarks for one Poseidon permutation with the different paramet
         - n=4 : 0.021060 ms (56862 cc)
         - n=5 : 0.026912 ms (72662 cc)
         - n=9 : 0.039712 ms (107222 cc)
+        
 - On **Apple M1 Pro**, compiled  with `clang-13`:
     - Full C implementation with `__int128` support:
         - n=3 : 0.009532 ms
